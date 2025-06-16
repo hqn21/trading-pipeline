@@ -10,6 +10,7 @@ from utils.losses import (
     masked_mse_loss,
     min_max_weighted_mask_mse_loss,
     masked_ccc_loss,
+    masked_rank_loss
 )
 
 class Trainer:
@@ -17,7 +18,7 @@ class Trainer:
         self, model, args,
         train_set, val_set, test_set, train_val_set,
         train_loader, val_loader, test_loader, train_val_loader,
-        device
+        device, #preprocessing_encoder=None,
     ):
         self.model = model.to(device)
         self.args = args
@@ -30,6 +31,7 @@ class Trainer:
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.train_val_loader = train_val_loader
+        # self.preprocessing_encoder = preprocessing_encoder
 
         self.criterion = self._get_loss_fn(args.loss)
         self.optimizer = torch.optim.Adam(
@@ -41,6 +43,7 @@ class Trainer:
             "mse": masked_mse_loss,
             "ccc": masked_ccc_loss,
             "min_max_weighted_mse": min_max_weighted_mask_mse_loss,
+            'rank': masked_rank_loss
         }
         if loss_name not in losses:
             raise ValueError(
@@ -241,8 +244,7 @@ class Trainer:
         2) 在 {base_output_dir}/{timespan}/ 下，分別跑 test & train_val；
         """
         # --- 計算 test timespan  ---
-        test_ds = self.test_set
-        start, end = test_ds.get_date(0), test_ds.get_date(len(test_ds) - 1)
+        start, end = pd.to_datetime(self.args.split_dates[2]), pd.to_datetime(self.args.split_dates[3])
         timespan = f"{start:%Y%m%d}_{end:%Y%m%d}"
 
         # --- 為兩個 split 準備各自資料夾 ---

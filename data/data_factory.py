@@ -1,4 +1,4 @@
-from .data_loader import Dataset_Abs
+from .data_loader import Dataset_Abs, Dataset_Pct, Dataset_S3E
 
 from torch.utils.data import DataLoader
 import json
@@ -33,6 +33,25 @@ def data_provider(args, flag):
             log=args.log,
             thresh=args.thresh,
         )
+    elif args.data == 'Dataset_Pct':
+        data_set = Dataset_Pct(
+            root_dir_path=args.root_path,
+            broker_dir_path = args.broker_path,
+            general_data_path = args.general_data_path,
+            stock_ids=stock_ids,
+            size=[args.seq_len, args.pred_len],
+            flag=flag, 
+            target=args.target,
+            split_dates=args.split_dates,
+            goal=args.goal,
+            log=args.log,
+            thresh=args.thresh,
+        )
+    # TODO: S3E
+    elif args.data == 'Dataset_S3E':
+        data_set = Dataset_S3E(
+        )
+        
     else:
         raise ValueError(f"Invalid data type: {args.data}")
     

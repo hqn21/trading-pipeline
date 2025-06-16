@@ -10,6 +10,7 @@ data: "Dataset_Abs"
 root_path: "./data/raw/market/"
 broker_path: "./data/raw/broker/"
 target: "etl:adj_close"
+goal: "max_price"
 
 loss: "ccc"
 general_data: 0
@@ -18,7 +19,6 @@ data_info_path: "./data/raw/data_info.json"
 
 # data info
 category: "Top50"
-goal: "max_price"
 pred_len: 30
 seq_len: 60
 

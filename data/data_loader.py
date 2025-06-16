@@ -444,7 +444,7 @@ class Dataset_Abs(Dataset_Basic):
             # Mean over the prediction window for each stock
             Y = close_pred_df.mean(skipna=True).values  # shape: (N_stocks,)
         else:
-            raise ValueError(f"goal = {self.goal} not implemented yet")
+            raise ValueError(f"goal = {self.goal} not implemented yet, only max_price, min_price, mean_price are supported")
 
         # Convert the sequence df into a 3D array
         X = self.reshape_2d_to_3d(seq_df)
@@ -527,7 +527,164 @@ class Dataset_Abs(Dataset_Basic):
         # Calculate the percentage change
         return (price_y - seq_close) / seq_close 
     
+class Dataset_Pct(Dataset_Basic):
+    def __init__(self, *args, goal, log, thresh = None, scaler_type = 'standard', **kwargs):
+        """
+        A specialized Dataset class extending Dataset_Basic, focusing on a 
+        particular 'goal' (e.g., 'max_price' or 'last_price') of the target variable.
+        
+        Parameters
+        ----------
+        goal : str
+            Specifies how to extract the label from the prediction window.
+            Must be either 'max_price' or 'last_price'.
+        *args, **kwargs : 
+            Passed through to the parent Dataset_Basic constructor.
+        """
+        super().__init__(*args, **kwargs)
+        self.goal = goal
+        self.log = log
+        self.thresh = thresh
+        
+        if scaler_type == 'min_max':
+            self.scaler_class = MinMaxScaler
+        elif scaler_type == 'standard':
+            self.scaler_class = StandardScaler
+        else:
+            raise ValueError(f"Unknown scaler type: {scaler_type}. Must be 'min_max' or 'standard'.")
+    
+    def scale_data(self, seq_df, pred_df = None):
+        """
+        Scale seq_df and pred_df with the given scaler type (MinMax or Standard).
+        
+        Parameters
+        ----------
+        seq_df : pd.DataFrame
+            Sequence window data to be scaled (rows: dates, MultiIndex columns: (stock_id, feature)).
+        pred_df : pd.DataFrame
+            Prediction window data to be scaled.
+        scaler_type : str, optional
+            'min_max' or 'standard' (default: 'min_max').
+        
+        Returns
+        -------
+        seq_df_scaled, pred_df_scaled : tuple of pd.DataFrame
+            Scaled versions of seq_df and pred_df, matching their original shapes/index/columns.
+        """
+        scaler = self.scaler_class()
 
+        # Fit the scaler on the seq_df portion
+        scaler.fit(seq_df)
+        
+        def scale_df(dframe, fitted_scaler):
+            arr = fitted_scaler.transform(dframe)
+            return pd.DataFrame(arr, index=dframe.index, columns=dframe.columns)
+
+        # Apply transformation to both sequence and prediction data
+        seq_df_scaled = scale_df(seq_df, scaler)
+        
+        if pred_df is None:
+            return seq_df_scaled
+        
+        pred_df_scaled = scale_df(pred_df, scaler)
+        return seq_df_scaled, pred_df_scaled
+    
+    def reshape_2d_to_3d(self, seq_df):
+        """
+        Reshape a pivoted DataFrame (T × (N×F)) into a 3D NumPy array (N × T × F).
+        
+        Parameters
+        ----------
+        seq_df : pd.DataFrame
+            Rows = T time steps, MultiIndex columns = (N stocks, F features).
+        
+        Returns
+        -------
+        arr_3d : np.ndarray
+            A 3D array with shape (N, T, F).
+        """
+        # Convert to (T, N*F) NumPy array
+        arr_2d = seq_df.to_numpy()
+        
+        # Determine dimensions: N = # unique stock_ids, F = # features, T = # time steps
+        N = seq_df.columns.levels[0].size
+        F = seq_df.columns.levels[1].size
+        T = seq_df.shape[0]
+
+        # Reshape to (T, N, F) then transpose to (N, T, F)
+        arr_3d = arr_2d.reshape(T, N, F).transpose(1, 0, 2)
+        return arr_3d
+
+    def __getitem__(self, index):
+        """
+        Retrieve a single sample from the dataset.
+
+        For the given 'index', get the sequence and prediction DataFrames, scale them,
+        and then extract the label 'Y' based on 'self.goal':
+          - 'max_price': maximum of the target column over the prediction window
+          - 'last_price': last value of the target column in the prediction window
+        
+        Returns
+        -------
+        X : np.ndarray
+            A 3D array of shape (N, T, F) representing scaled sequence data.
+        Y : np.ndarray
+            1D array of length N with either max or last target price (per stock).
+        index : int
+            The same index provided, for tracking purposes.
+        """
+        # Fetch the unscaled seq and pred DataFrames for this index
+        seq_df, seq_broker_df, seq_general_df, pred_df = self.get_base_item(index)
+        
+        # Extract only the target column from pred_df
+        # This returns a DataFrame with shape (T_pred, N_stocks)
+        close_pred_df = pred_df.xs(self.target, axis=1, level=1)
+        first_close_seq = close_pred_df.iloc[-1:].values.flatten()
+        
+        # Compute the label Y based on goal
+        if self.goal == 'max_roi':
+            # Max over the prediction window for each stock
+            Y = close_pred_df.max(skipna=True).values/first_close_seq - 1 # shape: (N_stocks,)
+        elif self.goal == 'min_roi':
+            # Max over the prediction window for each stock
+            Y = close_pred_df.min(skipna=True).values/first_close_seq - 1# shape: (N_stocks,)   
+        elif self.goal == 'mean_roi':
+            # Mean over the prediction window for each stock
+            Y = close_pred_df.mean(skipna=True).values/first_close_seq - 1# shape: (N_stocks,)
+        else:
+            raise ValueError(f"goal = {self.goal} not implemented yet, only max_roi, min_roi, mean_roi are supported")
+        
+        # Scale data
+        seq_df = self.scale_data(seq_df)
+        seq_broker_df = self.scale_data(seq_broker_df)
+        seq_general_df = self.scale_data(seq_general_df)
+        
+        # Convert the sequence df into a 3D array
+        X = self.reshape_2d_to_3d(seq_df)
+        seq_broker_df = seq_broker_df.fillna(0)
+        X_broker = self.reshape_2d_to_3d(seq_broker_df)
+        
+        # if np.isnan(X).sum() > 100:
+        #     breakpoint()
+        
+        if self.log:
+            # Clip Y to a tiny positive constant if any are <= 0
+            Y = np.clip(Y, 1e-8, None)
+            Y = np.log(Y)  # log transform
+            
+        return X, X_broker, seq_general_df.values, Y, index
+
+    def inverse(self, pred_y, index):
+        return pred_y
+
+    def get_pct(self, pred_y, index):
+        return pred_y 
+
+# TODO: S3E
+class Dataset_S3E(Dataset_Basic):
+    def __init__(self):
+        pass
+    
 
 if __name__ == "__main__":
     print("data loader testing")
