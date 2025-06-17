@@ -690,6 +690,10 @@ class Dataset_Jerome(Dataset_Basic):
     def __init__(self):
         pass
     
+# TODO: Berlin
+class Dataset_Berlin(Dataset_Basic):
+    def __init__(self):
+        pass
 
 if __name__ == "__main__":
     print("data loader testing")

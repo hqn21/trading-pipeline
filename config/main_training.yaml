@@ -11,6 +11,7 @@ root_path: "./data/raw/market/"
 broker_path: "./data/raw/broker/"
 target: "etl:adj_close"
 goal: "max_price"
+task_type: "regression"
 
 loss: "ccc"
 general_data: 0
