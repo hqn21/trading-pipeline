@@ -639,18 +639,18 @@ class Dataset_Pct(Dataset_Basic):
         # Extract only the target column from pred_df
         # This returns a DataFrame with shape (T_pred, N_stocks)
         close_pred_df = pred_df.xs(self.target, axis=1, level=1)
-        first_close_seq = close_pred_df.iloc[0:].values.flatten()
+        first_close_pred = close_pred_df.iloc[0].values.flatten()
         
         # Compute the label Y based on goal
         if self.goal == 'max_roi':
             # Max over the prediction window for each stock
-            Y = close_pred_df.max(skipna=True).values/first_close_seq - 1 # shape: (N_stocks,)
+            Y = close_pred_df.max(skipna=True).values/first_close_pred - 1 # shape: (N_stocks,)
         elif self.goal == 'min_roi':
             # Max over the prediction window for each stock
-            Y = close_pred_df.min(skipna=True).values/first_close_seq - 1# shape: (N_stocks,)   
+            Y = close_pred_df.min(skipna=True).values/first_close_pred - 1# shape: (N_stocks,)   
         elif self.goal == 'mean_roi':
             # Mean over the prediction window for each stock
-            Y = close_pred_df.mean(skipna=True).values/first_close_seq - 1# shape: (N_stocks,)
+            Y = close_pred_df.mean(skipna=True).values/first_close_pred - 1# shape: (N_stocks,)
         else:
             raise ValueError(f"goal = {self.goal} not implemented yet, only max_roi, min_roi, mean_roi are supported")
         
