@@ -639,7 +639,7 @@ class Dataset_Pct(Dataset_Basic):
         # Extract only the target column from pred_df
         # This returns a DataFrame with shape (T_pred, N_stocks)
         close_pred_df = pred_df.xs(self.target, axis=1, level=1)
-        first_close_seq = close_pred_df.iloc[-1:].values.flatten()
+        first_close_seq = close_pred_df.iloc[0:].values.flatten()
         
         # Compute the label Y based on goal
         if self.goal == 'max_roi':
