@@ -19,20 +19,17 @@ def read_market_data(
     
     if market_features:
         market_features += ['date', 'stock_id']  # Ensure 'date' and 'stock_id' are included
+        market_features = list(set(market_features))  # Remove duplicates
         missing_features = [feat for feat in market_features if feat not in market_df.columns]
         if missing_features:
             raise ValueError(f"The following market features are missing: {missing_features}")
         market_df = market_df[market_features]
     
+    market_df['date'] = pd.to_datetime(market_df['date'])
+
     if global_data_path:
         global_df = read_global_data(global_data_path, global_features)
-        # Merge global data on 'date'
-        market_df = market_df.merge(
-            global_df.reset_index(),
-            on="date",
-            how="left",
-            suffixes=("", "_global")
-        )
+        market_df = (market_df.join(global_df, how='left', on='date'))
     
     return market_df
 

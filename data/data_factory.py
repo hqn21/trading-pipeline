@@ -1,4 +1,5 @@
 from .data_loader import Dataset_Abs, Dataset_Pct, Dataset_S3E, Dataset_Jerome, Dataset_Berlin
+from .data_reader import read_market_data, read_broker_data, read_global_data
 
 from torch.utils.data import DataLoader
 import json
@@ -18,13 +19,25 @@ def data_provider(args, flag):
         basic_info = json.load(f)
         
     stock_ids = basic_info[args.category]
+    market_features = args.market_features
+    global_features = args.global_features
     
+    market_df = read_market_data(
+        args.root_path,
+        stock_ids,
+        global_data_path=args.general_data_path if args.concat_market_global else None,
+        market_features=market_features,
+        global_features=global_features
+    )
+
+    global_df = read_global_data(args.general_data_path, global_features=global_features)
+    broker_df = read_broker_data(args.broker_path, stock_ids)
+
     if args.data == 'Dataset_Abs':
         data_set = Dataset_Abs(
-            root_dir_path=args.root_path,
-            broker_dir_path = args.broker_path,
-            general_data_path = args.general_data_path,
-            stock_ids=stock_ids,
+            market_df=market_df,
+            broker_df=broker_df,
+            global_df=global_df,
             size=[args.seq_len, args.pred_len],
             flag=flag, 
             target=args.target,
@@ -35,10 +48,9 @@ def data_provider(args, flag):
         )
     elif args.data == 'Dataset_Pct':
         data_set = Dataset_Pct(
-            root_dir_path=args.root_path,
-            broker_dir_path = args.broker_path,
-            general_data_path = args.general_data_path,
-            stock_ids=stock_ids,
+            market_df=market_df,
+            broker_df=broker_df,
+            global_df=global_df,
             size=[args.seq_len, args.pred_len],
             flag=flag, 
             target=args.target,

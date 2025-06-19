@@ -22,6 +22,9 @@ data_info_path: "./data/raw/data_info.json"
 category: "Top50"
 pred_len: 30
 seq_len: 60
+market_features: ['etl:adj_close','etl:adj_open','etl:adj_high','etl:adj_low','price:成交筆數']
+global_features: ["^VIX", "PCR_Volume"]
+concat_market_global: 1
 
 # model
 feature_dim: 7
