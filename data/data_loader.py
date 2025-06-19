@@ -16,10 +16,9 @@ warnings.simplefilter("ignore", RuntimeWarning)
 class Dataset_Basic(Dataset):
     def __init__(
         self,
-        root_dir_path,
-        broker_dir_path,
-        general_data_path,
-        stock_ids,
+        market_df,
+        broker_df,
+        global_df,
         size,
         flag,
         target,
@@ -38,10 +37,6 @@ class Dataset_Basic(Dataset):
         self.flag = flag
         self.target = target
         self.split_dates = [pd.to_datetime(sd) for sd in split_dates]
-
-        # Load data
-        market_df = self._load_and_combine_data(root_dir_path, stock_ids)
-        broker_df = self._load_and_combine_data(broker_dir_path, stock_ids, broker=True, scale_all=False)
 
         # Filter out rare stocks
         self.stock_ids = self.filter_stock_ids(market_df)
@@ -67,10 +62,8 @@ class Dataset_Basic(Dataset):
         self.broker_df = extracted_broker_df
         self.dates = extracted_market_df["date"].sort_values().unique()
         
-        # Read general data
-        self.general_df = pd.read_csv(general_data_path)
-        self.general_df['date'] = pd.to_datetime(self.general_df['date'])
-        self.general_df.set_index('date', inplace=True)
+        # Read global data
+        self.global_df = global_df.copy()
         
     def __len__(self):
         # The number of usable entries is reduced by seq_len + pred_len
@@ -122,74 +115,6 @@ class Dataset_Basic(Dataset):
         new_splits.append(self.all_dates[shifted_idx3])
         
         return new_splits
-    
-    def _broker_preprocessing(self, df):
-        """
-        根據原始 df 中的 buy 與 sell 欄位，
-        建立新的 DataFrame，欄位為每個券商，
-        數值為 df['券商-buy'] - df['券商-sell']，
-        並保留 date 欄位。
-        """
-        # 建立一個新的 DataFrame，先保留 date 欄位
-        new_df = pd.DataFrame()
-        new_df['date'] = df['date']
-        
-        # 先收集所有券商名稱
-        brokers = set()
-        for col in df.columns:
-            if col.endswith('-buy'):
-                # 切除 "-buy"
-                brokers.add(col[:-4])
-            elif col.endswith('-sell'):
-                brokers.add(col[:-5])
-        
-        # 對每個券商計算 buy - sell
-        for broker in sorted(brokers):
-            buy_col = broker + '-buy'
-            sell_col = broker + '-sell'
-            # 若某個欄位不存在，則補 0
-            buy_series = df[buy_col] if buy_col in df.columns else 0
-            sell_series = df[sell_col] if sell_col in df.columns else 0
-            new_df[broker] = buy_series - sell_series
-        
-        return new_df
-    
-    def _load_and_combine_data(self, root_dir_path, stock_ids, broker=False, scale_all = False):
-        """
-        Load CSV files for given stock_ids, combine them into a single DataFrame,
-        and ensure 'date' is converted to datetime.
-        """
-        loaded_data = []
-        for sid in stock_ids:
-            csv_name = f"{sid}.csv"
-            csv_path = os.path.join(root_dir_path, csv_name)
-            if os.path.isfile(csv_path):
-                df = pd.read_csv(csv_path)
-            else:
-                print(f"[Warning] {csv_name} not found in {root_dir_path}.")
-                continue
-
-            df['date'] = pd.to_datetime(df['date'])
-            
-            if broker:
-                df = self._broker_preprocessing(df)
-            
-            df_train = self.extract_data(df, 'train').copy()
-            
-            if scale_all and len(df_train) > 50:
-                scaler = StandardScaler()
-                scaler.fit(df_train.iloc[:, 1:])
-                df.iloc[:, 1:] = scaler.transform(df.iloc[:, 1:])
-            
-            df["stock_id"] = sid
-            loaded_data.append(df)
-            
-        if not loaded_data:
-            raise ValueError("No valid CSVs loaded – check your stock_ids or directory path.")
-
-        combined_df = pd.concat(loaded_data, ignore_index=True)
-        combined_df["date"] = pd.to_datetime(combined_df["date"])
-        return combined_df
 
     def filter_stock_ids(self, df, threshold=0.9):
         """
@@ -243,9 +168,9 @@ class Dataset_Basic(Dataset):
         seq_df, pred_df = self._get_base_item_df(index, self.market_df)
         broker_seq_df, broker_pred_df = self._get_base_item_df(index, self.broker_df)
         broker_seq_df = broker_seq_df.reindex(seq_df.index, fill_value=0)
-        general_seq_df = self.general_df.reindex(seq_df.index).ffill().fillna(0)
+        global_seq_df = self.global_df.reindex(seq_df.index).ffill().fillna(0)
         
-        return seq_df, broker_seq_df, general_seq_df, pred_df 
+        return seq_df, broker_seq_df, global_seq_df, pred_df 
         
     def _get_base_item_df(self, index, df):
         """
@@ -415,7 +340,7 @@ class Dataset_Abs(Dataset_Basic):
             The same index provided, for tracking purposes.
         """
         # Fetch the unscaled seq and pred DataFrames for this index
-        seq_df, seq_broker_df, seq_general_df, pred_df = self.get_base_item(index)
+        seq_df, seq_broker_df, seq_global_df, pred_df = self.get_base_item(index)
         
         # create a mask for the stocks that are above the threshold
         if self.thresh:
@@ -426,7 +351,7 @@ class Dataset_Abs(Dataset_Basic):
         # Scale data
         seq_df, pred_df = self.scale_data(seq_df, pred_df)
         seq_broker_df = self.scale_data(seq_broker_df)
-        seq_general_df = self.scale_data(seq_general_df)
+        seq_global_df = self.scale_data(seq_global_df)
         
         # Extract only the target column from pred_df
         # This returns a DataFrame with shape (T_pred, N_stocks)
@@ -462,7 +387,7 @@ class Dataset_Abs(Dataset_Basic):
         if self.thresh:
             return X, X_broker, Y, thresh_df.values.flatten(), index
         
-        return X, X_broker, seq_general_df.values, Y, index
+        return X, X_broker, seq_global_df.values, Y, index
 
     def inverse(self, pred_y, index):
         """
@@ -483,7 +408,7 @@ class Dataset_Abs(Dataset_Basic):
         if self.log:
             pred_y = np.exp(pred_y)
         # Retrieve the original, unscaled sequence + pred data
-        seq_df, broker_seq_df, general_seq_df, pred_df = self.get_base_item(index)
+        seq_df, broker_seq_df, global_seq_df, pred_df = self.get_base_item(index)
         
         # We'll fit a MinMaxScaler only on the target column in seq_df
         # so we can invert 'pred_y' properly.
@@ -517,7 +442,7 @@ class Dataset_Abs(Dataset_Basic):
             A 1D array of percentage changes for each stock (shape: (N_stocks,)).
         """
         # Retrieve the original, unscaled sequence + pred data
-        seq_df, seq_broker_df, seq_general_df, pred_df = self.get_base_item(index)
+        seq_df, seq_broker_df, seq_global_df, pred_df = self.get_base_item(index)
         
         # Extract the last price in the sequence for each stock
         seq_close = seq_df.xs(self.target, axis=1, level=1).iloc[-1].values
@@ -634,7 +559,7 @@ class Dataset_Pct(Dataset_Basic):
             The same index provided, for tracking purposes.
         """
         # Fetch the unscaled seq and pred DataFrames for this index
-        seq_df, seq_broker_df, seq_general_df, pred_df = self.get_base_item(index)
+        seq_df, seq_broker_df, seq_global_df, pred_df = self.get_base_item(index)
         
         # Extract only the target column from pred_df
         # This returns a DataFrame with shape (T_pred, N_stocks)
@@ -657,7 +582,7 @@ class Dataset_Pct(Dataset_Basic):
         # Scale data
         seq_df = self.scale_data(seq_df)
         seq_broker_df = self.scale_data(seq_broker_df)
-        seq_general_df = self.scale_data(seq_general_df)
+        seq_global_df = self.scale_data(seq_global_df)
         
         # Convert the sequence df into a 3D array
         X = self.reshape_2d_to_3d(seq_df)
@@ -672,7 +597,7 @@ class Dataset_Pct(Dataset_Basic):
             Y = np.clip(Y, 1e-8, None)
             Y = np.log(Y)  # log transform
             
-        return X, X_broker, seq_general_df.values, Y, index
+        return X, X_broker, seq_global_df.values, Y, index
 
     def inverse(self, pred_y, index):
         return pred_y
@@ -697,42 +622,64 @@ class Dataset_Berlin(Dataset_Basic):
 
 if __name__ == "__main__":
     print("data loader testing")
-    root_path = "../data/individual_daily_data"
-    broker_path = "../data/broker"
-    general_data_path = "../data/general_data.csv"
-    data_filenames = os.listdir(root_path)
+    root_path = "./data/raw/market/"
+    broker_path = "./data/raw/broker/"
+    global_data_path = "./data/raw/global/global_data.csv"
+    
+    stock_ids =  ['2330', '2317', '2454']  # Example stock IDs
+    market_features = ['etl:adj_close','etl:adj_open','etl:adj_high','etl:adj_low','price:成交筆數']
+    global_features = ["^VIX", "PCR_Volume"]
+    
     size = (60, 30)
+    
+    
+    from data_reader import (
+        read_market_data,
+        read_global_data,
+        read_broker_data,
+    )
+        
+    market_df = read_market_data(
+        root_path,
+        stock_ids,
+        global_data_path=global_data_path,
+        market_features=market_features,
+        global_features=global_features
+    )
 
-    with open("../data/data_info.json", "r") as f:
-        basic_info = json.load(f)
-
-    stock_ids = basic_info["Top50"]
+    broker_df = read_broker_data(
+        broker_path,
+        stock_ids
+    )
+    
+    global_df = read_global_data(
+        global_data_path, 
+        global_features=global_features
+    )
     
     dataset_basic = Dataset_Basic(
-        root_dir_path=root_path, 
-        broker_dir_path=broker_path,
-        general_data_path=general_data_path,
-        stock_ids=stock_ids, 
+        market_df=market_df,
+        broker_df=broker_df,
+        global_df=global_df,
         size=size,
         flag='test', 
         target="etl:adj_close", 
         split_dates=["2020-01-01", "2022-01-01", "2023-01-01", "2024-01-01"]
     )
 
-    seq_df, seq_broker_df, seq_general_df, pred_df = dataset_basic.get_base_item(0)
+    seq_df, seq_broker_df, seq_global_df, pred_df = dataset_basic.get_base_item(0)
     seq_broker_shape = seq_broker_df.shape
     
     for i in range(len(dataset_basic)):
-        seq_df, seq_broker_df, seq_general_df, pred_df = dataset_basic.get_base_item(i)
+        seq_df, seq_broker_df, seq_global_df, pred_df = dataset_basic.get_base_item(i)
         if seq_broker_df.shape != seq_broker_shape:
             print(f"Shape mismatch at index {i}: {seq_broker_shape}")
     
     
     dataset_abs = Dataset_Abs(
-        root_dir_path=root_path, 
-        broker_dir_path=broker_path,
-        general_data_path=general_data_path,
-        stock_ids=stock_ids, 
+        market_df=market_df,
+        broker_df=broker_df,
+        global_df=global_df,
         size=size,
         flag='train', 
         target="etl:adj_close", 
@@ -741,16 +688,16 @@ if __name__ == "__main__":
         log=0,
     )
     
-    X_shape, X_broker_shape, X_general_shape, Y_shape = dataset_abs[0][0].shape, dataset_abs[0][1].shape, dataset_abs[0][2].shape, dataset_abs[0][3].shape
+    X_shape, X_broker_shape, X_global_shape, Y_shape = dataset_abs[0][0].shape, dataset_abs[0][1].shape, dataset_abs[0][2].shape, dataset_abs[0][3].shape
     
 
-    for X, X_broker, X_general, Y, index in dataset_abs:
+    for X, X_broker, X_global, Y, index in dataset_abs:
         if X.shape != X_shape:
             print(f"Shape mismatch at index {index}: {X_shape}")
         if X_broker.shape != X_broker_shape:
             print(f"Shape mismatch at index {index}: {X_broker_shape}")
-        if X_general.shape != X_general_shape:
-            print(f"Shape mismatch at index {index}: {X_general_shape}")
+        if X_global.shape != X_global_shape:
+            print(f"Shape mismatch at index {index}: {X_global_shape}")
         if Y.shape != Y_shape:
             print(f"Shape mismatch at index {index}: {Y_shape}")
         dataset_abs.get_pct(Y, index)

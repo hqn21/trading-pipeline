@@ -15,7 +15,7 @@ task_type: "regression"
 
 loss: "ccc"
 general_data: 0
-general_data_path: "./data/raw/general/general_data.csv"
+general_data_path: "./data/raw/global/global_data.csv"
 data_info_path: "./data/raw/data_info.json"
 
 # data info
