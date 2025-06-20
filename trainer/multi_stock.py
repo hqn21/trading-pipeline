@@ -13,7 +13,7 @@ from utils.losses import (
     masked_rank_loss
 )
 
-class Trainer:
+class MultiStockTrainer:
     def __init__(
         self, model, args,
         train_set, val_set, test_set, train_val_set,
