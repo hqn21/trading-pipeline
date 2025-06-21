@@ -17,7 +17,12 @@ def data_provider(args, flag):
     
     with open(args.data_info_path, "r") as f:
         basic_info = json.load(f)
-        
+    
+    with open(args.broker_info_path, "r") as f:
+        broker_info = json.load(f)
+    
+    broker_names = broker_info['rank'][:args.broker_topK]
+           
     stock_ids = basic_info[args.category]
     market_features = args.market_features
     global_features = args.global_features
@@ -31,7 +36,7 @@ def data_provider(args, flag):
     )
 
     global_df = read_global_data(args.general_data_path, global_features=global_features)
-    broker_df = read_broker_data(args.broker_path, stock_ids)
+    broker_df = read_broker_data(args.broker_path, stock_ids, broker_names)
 
     if args.data == 'Dataset_Abs':
         data_set = Dataset_Abs(

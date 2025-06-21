@@ -36,13 +36,14 @@ def read_market_data(
 
 def read_broker_data(
     root_dir: Union[str, Path],
-    stock_ids: List[str]
+    stock_ids: List[str],
+    broker_names: Optional[List[str]] = None
 ) -> pd.DataFrame:
     """
     Load broker data for given stock_ids and compute net buy-sell per broker.
     Returns a DataFrame with 'date' and one column per broker.
     """
-    return _load_and_combine_csvs(root_dir, stock_ids, broker=True)
+    return _load_and_combine_csvs(root_dir, stock_ids, broker=True, broker_names=broker_names)
 
 
 def read_global_data(
@@ -69,7 +70,8 @@ def read_global_data(
 def _load_and_combine_csvs(
     root_dir: Union[str, Path],
     stock_ids: List[str],
-    broker: bool = False
+    broker: bool = False,
+    broker_names: Optional[List[str]] = None
 ) -> pd.DataFrame:
     """
     Helper to load individual CSVs for each stock_id and concatenate.
@@ -86,49 +88,59 @@ def _load_and_combine_csvs(
 
         df = pd.read_csv(file_path, parse_dates=["date"])
         if broker:
-            df = _broker_preprocessing(df)
+            df = _broker_preprocessing(df, broker_names)
         df["stock_id"] = sid
         dfs.append(df)
 
     if not dfs:
         raise ValueError(f"No CSVs loaded from {root} for stock_ids {stock_ids}")
-
     return pd.concat(dfs, ignore_index=True)
 
 
-def _broker_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
+def _broker_preprocessing(df: pd.DataFrame, broker_names: List[str]) -> pd.DataFrame:
     """
     Compute net buy-sell for each broker.
     Assumes columns like '<broker>-buy' and '<broker>-sell'.
     """
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"])
+    
+    df['diff'] = df['buy'] - df['sell']
+    df.drop(columns=['buy', 'sell'], inplace=True)
+    df = df[df['broker'].isin(broker_names)]
 
-    # Identify broker prefixes
-    brokers = set(
-        col.rsplit("-", 1)[0]
-        for col in df.columns
-        if col.endswith("-buy") or col.endswith("-sell")
-    )
+    # breakpoint()
+    
+    df_wide = df.pivot_table(index='date', columns='broker', values='diff')
 
-    # Build net series for each broker
-    data = {"date": df["date"]}
-    for broker in sorted(brokers):
-        buy = df.get(f"{broker}-buy", 0)
-        sell = df.get(f"{broker}-sell", 0)
-        data[broker] = buy - sell
-
-    return pd.DataFrame(data)
+    for broker in broker_names:
+        if broker not in df_wide.columns:
+            df_wide[broker] = 0
+    df_wide = df_wide.reset_index()
+    return df_wide
 
 
 if __name__ == "__main__":
     root_path = "./data/raw/market/"
     broker_path = "./data/raw/broker/"
-    general_data_path = "./data/raw/general/general_data.csv"
+    general_data_path = "./data/raw/global/global_data.csv"
     
     stock_ids =  ['2330', '2317', '2454']  # Example stock IDs
     market_features = ['etl:adj_close','etl:adj_open','etl:adj_high','etl:adj_low','price:成交筆數']
     global_features = ["^VIX", "PCR_Volume"]
+    
+    broker_names = [
+        "凱基-台北",
+        "元大證券",
+        "摩根大通",
+        "新加坡商瑞銀",
+        "美林",
+        "台灣摩根士丹利",
+        "美商高盛",
+        "瑞士信貸",
+        "永豐金證券",
+        "富邦證券",
+    ]
     
     market_df = read_market_data(
         root_path,
@@ -139,6 +151,6 @@ if __name__ == "__main__":
     )
     
     global_df = read_global_data(general_data_path, global_features=global_features)
-    broker_df = read_broker_data(broker_path, stock_ids)
+    broker_df = read_broker_data(broker_path, stock_ids, broker_names)
     
     

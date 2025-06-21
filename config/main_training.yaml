@@ -16,7 +16,8 @@ task_type: "regression"
 loss: "ccc"
 general_data: 0
 general_data_path: "./data/raw/global/global_data.csv"
-data_info_path: "./data/raw/data_info.json"
+data_info_path: "./data/info/data_info.json"
+broker_info_path: "./data/info/broker_info.json"
 
 # data info
 category: "Top50"
@@ -24,6 +25,8 @@ pred_len: 30
 seq_len: 60
 market_features: ['etl:adj_close','etl:adj_open','etl:adj_high','etl:adj_low','price:成交筆數']
 global_features: ["^VIX", "PCR_Volume"]
+broker_topK: 50
+
 concat_market_global: 1
 
 # model
