@@ -30,12 +30,12 @@ broker_topK: 50
 concat_market_global: 1
 
 # model
-feature_dim: 7
-broker_dim: 91
+feature_dim: 24
+broker_dim: 50
 general_dim: 4
 hidden_dim: 128
 num_layers: 2
-broker: 0
+broker: 1
 log: 0
 thresh: null
 d_model: 128
