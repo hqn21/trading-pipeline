@@ -11,7 +11,7 @@ from strategies.backtest.allen import *
 from strategies.utils.analysis import print_result
 from strategies.utils.data_processor import filter_bad_targets, get_price_df
 
-def get_allen_result(cfg: dict, result_dir: str):
+def get_allen_signals(cfg: dict, result_dir: str):
     buy_dfs, sell_dfs = pd.DataFrame(), pd.DataFrame()
     for dir in os.listdir(result_dir):
         pred_df = pd.read_csv(os.path.join(result_dir, dir, "test/pred_pct.csv"), index_col="date")
@@ -20,6 +20,18 @@ def get_allen_result(cfg: dict, result_dir: str):
         sell_dfs = pd.concat([sell_dfs, generate_signal.generate_sell_signal(pred_df, "allen", val_df)], axis=0)
     buy_dfs  =  buy_dfs.sort_index()
     sell_dfs = sell_dfs.sort_index()
+    buy_dfs.index = pd.to_datetime(buy_dfs.index)
+    sell_dfs.index = pd.to_datetime(sell_dfs.index)
+    
+    return {
+        'buy_signals': buy_dfs,
+        'sell_signals': sell_dfs,
+    }
+    
+def get_allen_result(cfg: dict, result_dir: str):
+    signals = get_allen_signals(cfg, result_dir)
+    buy_dfs = signals['buy_signals']
+    sell_dfs = signals['sell_signals']
 
     Target = filter_bad_targets(buy_dfs.columns, cfg)
         
