@@ -8,3 +8,4 @@ max_positions: 5
 max_holding_period: 30
 commission: 0.00145
 tax: 0.003
+root_path: "./data/raw/market/"
