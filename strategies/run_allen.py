@@ -20,8 +20,12 @@ def get_allen_signals(cfg: dict, result_dir: str):
         sell_dfs = pd.concat([sell_dfs, generate_signal.generate_sell_signal(pred_df, "allen", val_df)], axis=0)
     buy_dfs  =  buy_dfs.sort_index()
     sell_dfs = sell_dfs.sort_index()
+    
     buy_dfs.index = pd.to_datetime(buy_dfs.index)
     sell_dfs.index = pd.to_datetime(sell_dfs.index)
+    
+    buy_dfs = buy_dfs.loc[~buy_dfs.index.duplicated(keep='last')]
+    sell_dfs = sell_dfs.loc[~sell_dfs.index.duplicated(keep='last')]
     
     return {
         'buy_signals': buy_dfs,
