@@ -30,11 +30,15 @@ class BaseModel(nn.Module):
 
         return x
     
-    def forward(self, x, x_broker=None, x_general=None):
-        if self.preprocesser_model:
+    def forward(self, x, x_broker=None, x_general=None, stock_idx=None):
+        if self.preprocesser_model: # B * n_stock * n_feature * seq_len
             x = self.preprocess_and_combine(x)
+    
+        if stock_idx:    
+            output = self.model(x, x_broker, x_general, stock_idx)
+        else:
+            output = self.model(x, x_broker, x_general)
             
-        output = self.model(x, x_broker, x_general)
         return output
             
         
