@@ -31,6 +31,13 @@ def compute_surge_metrics_from_buy_signals(test_pred: pd.DataFrame, test_truth: 
             'total_elements': int
         }
     """
+    if type(buy_signals.index) != pd.DatetimeIndex:
+        buy_signals.index = pd.to_datetime(buy_signals.index)
+    if type(test_pred.index) != pd.DatetimeIndex:
+        test_pred.index = pd.to_datetime(test_pred.index)
+    if type(test_truth.index) != pd.DatetimeIndex:
+        test_truth.index = pd.to_datetime(test_truth.index)
+        
     # 1. 构建掩码
     pred_surge_mask   = (test_pred  > threshold)
     actual_surge_mask = (test_truth > threshold)
