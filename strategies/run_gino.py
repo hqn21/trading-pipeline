@@ -36,7 +36,7 @@ def get_benchmark_result(result_dir: str, start_date: pd.DatetimeIndex, end_date
     finlab.login('ntSS3778pZi2FfkeYxXP0p+S0iI4AggkcphAUxh/lTVrWqT2FreKQsDkTA92CM7d#vip_m')
     dir = os.listdir(result_dir)[0]
     pred_df = pd.read_csv(os.path.join(result_dir, dir, "test/pred_pct.csv"), index_col="date")
-    close_price = data.get('price:收盤價')[pred_df.columns]
+    close_price = data.get('etl:adj_close')[pred_df.columns]
     close_price = close_price[(close_price.index >= start_date) & (close_price.index <= end_date)]
     for col in close_price.columns:
         close_price[col] = close_price[col] / close_price[col].iloc[0]
