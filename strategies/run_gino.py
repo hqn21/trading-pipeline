@@ -10,6 +10,7 @@ from strategies import generate_signal_topK
 from strategies.backtest.pyramid import *
 from strategies.utils.analysis import print_result
 from strategies.utils.data_processor import filter_bad_targets, get_price_df
+from strategies.utils.analysis import get_benchmark_result
 import math
 
 def get_gino_signals(cfg: dict, result_dir: str):
@@ -28,21 +29,6 @@ def get_gino_signals(cfg: dict, result_dir: str):
         'buy_signals': buy_signals,
         'sell_signals': pd.DataFrame(index=buy_signals.index, columns=buy_signals.columns, data=0),
     }
-
-def get_benchmark_result(result_dir: str, start_date: pd.DatetimeIndex, end_date: pd.DatetimeIndex):
-    import os
-    import finlab
-    from finlab import data
-    finlab.login('ntSS3778pZi2FfkeYxXP0p+S0iI4AggkcphAUxh/lTVrWqT2FreKQsDkTA92CM7d#vip_m')
-    dir = os.listdir(result_dir)[0]
-    pred_df = pd.read_csv(os.path.join(result_dir, dir, "test/pred_pct.csv"), index_col="date")
-    close_price = data.get('etl:adj_close')[pred_df.columns]
-    close_price = close_price[(close_price.index >= start_date) & (close_price.index <= end_date)]
-    for col in close_price.columns:
-        close_price[col] = close_price[col] / close_price[col].iloc[0]
-    benchmark_returns = close_price.mean(axis=1)
-    benchmark_result = Result(benchmark_returns, None, None)
-    return benchmark_result
 
 def get_gino_result(cfg: dict, result_dir: str):
     signals = get_gino_signals(cfg, result_dir)

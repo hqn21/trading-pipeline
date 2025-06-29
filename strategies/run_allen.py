@@ -10,6 +10,7 @@ from strategies import generate_signal
 from strategies.backtest.allen import *
 from strategies.utils.analysis import print_result
 from strategies.utils.data_processor import filter_bad_targets, get_price_df
+from strategies.utils.analysis import get_benchmark_result
 
 def get_allen_signals(cfg: dict, result_dir: str):
     buy_dfs, sell_dfs = pd.DataFrame(), pd.DataFrame()
@@ -45,7 +46,8 @@ def get_allen_result(cfg: dict, result_dir: str):
     
     backtest = Backtest(Strategy, price_df, commission=cfg["commission"], cash=1e9)
     result           = backtest.run(buy_dfs, sell_dfs, targets=Target, max_positions=len(Target), is_benchmark = False)
-    result_benchmark = backtest.run(buy_dfs, sell_dfs, targets=Target, max_positions=len(Target), is_benchmark = True)
+    result_benchmark = get_benchmark_result(result_dir, buy_dfs.index[0], buy_dfs.index[-1])
+    
     return {
         'model': result,
         'benchmark': result_benchmark,
