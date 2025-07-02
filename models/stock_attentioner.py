@@ -109,7 +109,7 @@ class LSTMEncoder(nn.Module):
     """Encodes the time series data for each stock into a fixed-length embedding."""
     def __init__(self, feature_dim, seq_len, hidden_dim, num_layers=1, bidirectional=False):
         super(LSTMEncoder, self).__init__()
-        self.feature_mixer = nn.Linear(feature_dim, feature_dim)
+        self.feature_mixer = nn.Linear(feature_dim * 2, feature_dim)
         self.lstm = nn.LSTM(feature_dim, hidden_dim, num_layers, batch_first=True, bidirectional=bidirectional)
         # self.encoder = iTransformer_encoder(seq_len, hidden_dim)
 
@@ -118,6 +118,18 @@ class LSTMEncoder(nn.Module):
         x = x.contiguous() 
         batch_size, num_stocks, seq_len, feature_dim = x.shape
         x = x.view(batch_size * num_stocks * seq_len, feature_dim)
+
+        # fft
+        x = torch.fft.fft(x, dim=-1)
+        x1 = x.real
+        x2 = x.imag
+        x = torch.cat([x1, x2], dim=-1)  # Concatenate real and imaginary parts
+
+        # absolute value only
+        # x = torch.abs(x)
+
+        # feature mixing
+        x = x.view(batch_size * num_stocks, seq_len, feature_dim * 2)
         x = self.feature_mixer(x)
         x = x.view(batch_size, num_stocks, seq_len, feature_dim)
         
