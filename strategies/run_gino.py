@@ -10,7 +10,7 @@ from strategies import generate_signal_topK
 from strategies.backtest.pyramid import *
 from strategies.utils.analysis import print_result
 from strategies.utils.data_processor import filter_bad_targets, get_price_df
-from strategies.utils.analysis import get_benchmark_result
+from strategies.utils.analysis import get_equal_weight_baseline_result
 import math
 
 def get_gino_signals(cfg: dict, result_dir: str):
@@ -51,7 +51,7 @@ def get_gino_result(cfg: dict, result_dir: str):
     
     backtest = PyramidBacktest(MyStrategy, price_df, commission=cfg["commission"], cash=1e9)
     result   = backtest.run(buy_signal=buy_dfs)
-    benchmark_result = get_benchmark_result(result_dir, buy_dfs.index[0], buy_dfs.index[-1])
+    benchmark_result = get_equal_weight_baseline_result(result_dir, buy_dfs.index[0], buy_dfs.index[-1])
     
     return {
         'model': result,
