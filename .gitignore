@@ -8,3 +8,7 @@ data/raw*
 __pycache__/
 tmp/
 rename.ipynb
+tmp*
+evaluation*
+evaluation!
+demo*

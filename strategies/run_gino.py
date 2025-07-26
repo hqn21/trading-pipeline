@@ -36,7 +36,6 @@ def get_gino_result(cfg: dict, result_dir: str):
 
     Target = filter_bad_targets(list(buy_dfs.columns), cfg)
         
-    finlab.login('ntSS3778pZi2FfkeYxXP0p+S0iI4AggkcphAUxh/lTVrWqT2FreKQsDkTA92CM7d#vip_m')
     price_df = get_price_df(Target)
     price_df = price_df[(price_df.index >= buy_dfs.index[0]) & (price_df.index <= buy_dfs.index[-1])]
     
