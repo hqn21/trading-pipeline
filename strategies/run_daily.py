@@ -1,0 +1,221 @@
+from finlab import data
+import finlab
+import pandas as pd
+import yaml
+import os
+from strategies.backtest.daily import *
+from strategies.utils.data_processor import filter_bad_targets, get_price_df
+from strategies.utils.analysis import get_equal_weight_baseline_result
+from evaluation.stats import sharpe, sharpe_0050
+
+finlab.login("ntSS3778pZi2FfkeYxXP0p+S0iI4AggkcphAUxh/lTVrWqT2FreKQsDkTA92CM7d#vip_m")
+
+
+def generate_daily_signal(
+    cfg, pred_df: pd.DataFrame, val_df: pd.DataFrame, k: int, cash_quantile: float
+):
+    cash_pct = val_df.melt().value.quantile(cash_quantile)
+    pred_df["cash"] = cash_pct
+    signals = pd.DataFrame(index=pred_df.index, columns=pred_df.columns, data=0)
+
+    prev_row = None
+    for i, (date, row) in enumerate(pred_df.iterrows()):
+        row.fillna(0, inplace=True)
+        if i < k:
+            row = pred_df.iloc[0 : i + 1].mean(axis=0)
+        else:
+            alpha = 2 / (k + 1)
+            row = row * alpha + prev_row * (1 - alpha)
+        signals.loc[date] = row
+        prev_row = row
+
+    return signals
+
+
+def get_daily_signals(
+    cfg: dict,
+    result_dir: str,
+    k: int,
+    cash_quantile: float,
+    *,
+    start_date=None,
+    end_date=None,
+):
+    signals = pd.DataFrame()
+    for dir in os.listdir(f"{result_dir}"):
+        print(f"Processing {dir}...")
+        pred_df = pd.read_csv(f"{result_dir}/{dir}/test/pred_pct.csv", index_col=0)
+        val_df = pd.read_csv(f"{result_dir}/{dir}/train_val/pred_pct.csv", index_col=0)
+        _signals = generate_daily_signal(
+            cfg, pred_df, val_df=val_df, k=k, cash_quantile=cash_quantile
+        )
+        signals = (
+            pd.concat([signals, _signals], axis=0) if not signals.empty else _signals
+        )
+    if start_date is not None:
+        signals = signals[signals.index >= start_date.strftime("%Y-%m-%d")]
+    if end_date is not None:
+        signals = signals[signals.index < end_date.strftime("%Y-%m-%d")]
+    signals = signals.sort_index()
+
+    return signals
+
+
+def get_daily_result(
+    cfg: dict,
+    result_dir: str,
+    k: int = 15,
+    cash_quantile: float = 0.25,
+    T: float = 0.5,
+    normalize: bool = True,
+    *,
+    start_date=None,
+    end_date=None,
+):
+    buy_signals = get_daily_signals(
+        cfg,
+        result_dir,
+        k=k,
+        cash_quantile=cash_quantile,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    stocks = buy_signals.columns.tolist()
+    stocks.remove("cash")
+    Target = filter_bad_targets(stocks, cfg)
+
+    price_df = get_price_df(Target)
+    price_df = price_df[
+        (price_df.index >= buy_signals.index[0])
+        & (price_df.index <= buy_signals.index[-1])
+    ]
+
+    backtest = DailyBacktest(
+        data=price_df,
+        commission=cfg["commission"],
+        tax=cfg["tax"],
+        cash=1e9,
+        T=T,
+        freq="D",
+        normalize=normalize,
+    )
+    result = backtest.run(buy_signal=buy_signals)
+    benchmark_result = get_equal_weight_baseline_result(
+        result_dir, buy_signals.index[0], buy_signals.index[-1]
+    )
+
+    return {
+        "model": result,
+        "benchmark": benchmark_result,
+    }
+
+
+def get_daily_metrics(
+    cfg: dict,
+    result_dir: str,
+    k: int,
+    cash_quantile: float,
+    T: float,
+    normalize: bool = True,
+    start_date=None,
+    end_date=None,
+):
+    """
+    return:
+    {
+        'roi': float,
+        'sharpe': float,
+        'sharpe_0050': float,
+    }
+    """
+    result = get_daily_result(
+        cfg,
+        result_dir,
+        k=k,
+        cash_quantile=cash_quantile,
+        T=T,
+        normalize=normalize,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    roi = result["model"].returns.iloc[-1] / result["model"].returns.iloc[0] - 1
+    sharpe_ratio = sharpe(result["model"].returns)
+
+    # get 0050 close price
+    with data.universe("ETF"):
+        close_df = data.get("etl:adj_close")
+        close_df = close_df["0050"]
+        close_df = close_df[
+            (close_df.index >= result["model"].returns.index[0])
+            & (close_df.index <= result["model"].returns.index[-1])
+        ]
+    # etf_roi = close_df.iloc[-1] / close_df.iloc[0] - 1
+    etf_sharpe = sharpe_0050(result["model"].returns, close_df)
+
+    return {
+        "roi": roi,
+        "sharpe": sharpe_ratio,
+        "sharpe_0050": etf_sharpe,
+    }
+
+
+if __name__ == "__main__":
+    from strategies.run_allen import get_allen_result
+    from strategies.run_gino import get_gino_result
+
+    f = open("config/backtest.yaml")
+    cfg = yaml.safe_load(f)
+    result_dir = "results/Example_Result"
+
+    start_date = datetime.strptime("2021-01-01", "%Y-%m-%d")
+    end_date = datetime.strptime("2025-10-01", "%Y-%m-%d")
+
+    buy_signals = get_daily_signals(
+        cfg,
+        result_dir,
+        k=30,
+        cash_quantile=0.5,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    breakpoint()
+
+    result = get_daily_result(
+        cfg,
+        result_dir,
+        k=30,
+        cash_quantile=0.5,
+        T=0.5,
+        normalize=True,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    # print(result)
+
+    # breakpoint()
+    roi = result["model"].returns.iloc[-1] / result["model"].returns.iloc[0] - 1
+    print("ROI:", roi)
+    sharpe_ratio = sharpe(result["model"].returns)
+    print("Sharpe Ratio:", sharpe_ratio)
+
+    breakpoint()
+
+    with data.universe("ETF"):
+        close_df = data.get("etl:adj_close")
+        close_df = close_df["0050"]
+    close_df = close_df[
+        (close_df.index >= result["model"].returns.index[0])
+        & (close_df.index <= result["model"].returns.index[-1])
+    ]
+    etf_roi = close_df.iloc[-1] / close_df.iloc[0] - 1
+    print("0050 ROI:", etf_roi)
+    etf_sharpe = sharpe_0050(result["model"].returns, close_df)
+    print("Sharpe(0050) Ratio:", etf_sharpe)
+
+    # result = get_gino_result(cfg, result_dir)
+    # result_model = result['model']
+
+    # print("If trading by our strategy:")
+    # print_result(result_model.returns)

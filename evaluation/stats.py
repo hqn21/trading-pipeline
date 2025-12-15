@@ -299,6 +299,67 @@ def sharpe(returns, rf=0.0, periods=252, annualize=True, smart=False):
     return res
 
 
+def sharpe_0050(returns, series_0050, periods=252, annualize=True, smart=False):
+    """
+    Sharpe ratio where the risk-free return is the daily percent-change of 0050.
+
+    Args:
+        * returns (pd.Series or pd.DataFrame): strategy returns or price series (will be prepared)
+        * series_0050 (pd.Series): price series for 0050 (or returns series). If prices provided,
+            percent-change will be computed internally and aligned to `returns` index.
+        * periods (int): periods per year for annualization (default 252)
+        * annualize (bool): whether to annualize the resulting Sharpe
+        * smart (bool): apply autocorrelation penalty to volatility (same as `sharpe.smart`)
+
+    Notes:
+        This function computes the daily rf series from `series_0050` by taking pct_change()
+        and aligning it to `returns` index. Excess returns are computed as (returns - rf_series)
+        and then the Sharpe formula is applied.
+    """
+    # prepare returns (convert prices->returns if needed) but do not apply rf here
+    returns_prep = _utils._prepare_returns(returns, rf=0.0)
+
+    # Accept either price series or returns series for series_0050
+    # If series_0050 looks like prices (max>1), convert to pct_change
+    series_0050 = series_0050.copy()
+    try:
+        if isinstance(series_0050, _pd.DataFrame):
+            # take first column
+            series_0050 = series_0050[series_0050.columns[0]]
+        if series_0050.dropna().empty:
+            raise ValueError("series_0050 is empty")
+        if series_0050.min() >= 0 and series_0050.max() > 1:
+            rf_series = series_0050.pct_change()
+        else:
+            # assume already returns
+            rf_series = series_0050
+    except Exception:
+        rf_series = _pd.Series([], dtype=float)
+
+    # align rf to returns index and fill missing with 0
+    rf_series = rf_series.reindex(returns_prep.index).fillna(0)
+
+    # compute excess returns
+    if isinstance(returns_prep, _pd.DataFrame):
+        excess = returns_prep.subtract(rf_series, axis=0)
+        divisor = excess.std(ddof=1)
+        if smart:
+            # apply autocorr penalty column-wise
+            divisor = divisor * excess.apply(_utils.autocorr_penalty)
+        res = excess.mean() / divisor
+    else:
+        excess = returns_prep - rf_series
+        divisor = excess.std(ddof=1)
+        if smart:
+            divisor = divisor * _utils.autocorr_penalty(excess)
+        res = excess.mean() / divisor
+
+    if annualize:
+        return res * _np.sqrt(1 if periods is None else periods)
+
+    return res
+
+
 def smart_sharpe(returns, rf=0.0, periods=252, annualize=True):
     return sharpe(returns, rf, periods, annualize, True)
 
