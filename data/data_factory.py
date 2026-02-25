@@ -1,11 +1,13 @@
-from .data_loader import Dataset_Abs, Dataset_Pct, Dataset_S3E, Dataset_Jerome, Dataset_Berlin
-from .data_reader import read_market_data, read_broker_data, read_global_data
+import json
 
 import pandas as pd
 from torch.utils.data import DataLoader
-import json
-import argparse
-from pandas.tseries.offsets import BDay
+
+from .data_loader import (Dataset_Abs, Dataset_Berlin, Dataset_Jerome,
+                          Dataset_Pct, Dataset_S3E)
+from .data_reader import read_broker_data, read_global_data, read_market_data
+from .data_dates import trading_cbday
+
 
 def data_provider(args, flag, isS3E=False):
     if flag == 'test':
@@ -43,8 +45,7 @@ def data_provider(args, flag, isS3E=False):
     def fill_extended_days(market_df):
         # append pred_len days on market_df to avoid out-of-index
         start_date = market_df['date'].max() + pd.tseries.offsets.BDay(1)
-        end_date = market_df['date'].max() + pd.tseries.offsets.BDay(args.pred_len + 15) # extra 15 business days for safety
-        extended_dates = pd.date_range(start=start_date, end=end_date, freq='B')
+        extended_dates = pd.bdate_range(start_date, periods=args.pred_len + 15, freq=trading_cbday) # extra 15 business days for safety
         extended_date_df = pd.DataFrame(extended_dates, columns=['date'])
         extended_stock_ids = market_df['stock_id'].unique()
         extended_stock_df = pd.DataFrame(extended_stock_ids, columns=['stock_id'])
