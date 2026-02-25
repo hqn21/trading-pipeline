@@ -52,7 +52,7 @@ def get_market_dfs():
         news = data.get('tw_news_cnyes')
         news.date = news.date.dt.date
 
-        breakpoint()
+        # breakpoint()
 
         df = news[['date', 'stock_ids']].copy()
         df['stock_ids'] = df['stock_ids'].str.split(',')
