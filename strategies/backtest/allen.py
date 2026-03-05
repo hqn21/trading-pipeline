@@ -198,7 +198,13 @@ class Strategy():
                 for symbol in self.symbols:
                     if (symbol not in self.targets):
                         continue
-                    size = int( self.cash / (len(self.targets) - len(self.open_positions)) / record[(symbol,'Open')] / (1 + self.commission) )
+                    try:
+                        size = int( self.cash / (len(self.targets) - len(self.open_positions)) / record[(symbol,'Open')] / (1 + self.commission) )
+                    except:
+                        if pd.isna(record[(symbol,'Open')]):
+                            print(f"Symbol {symbol} has no open price on {self.date}, omitting it...")
+                        size = 0
+
                     self.open(symbol=symbol, price=record[(symbol,'Open')], size=size)
             
             for position in self.open_positions[:]:

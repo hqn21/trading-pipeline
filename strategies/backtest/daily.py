@@ -4,7 +4,6 @@ from typing import List, Dict, Any, Type, Hashable, Optional
 from math import nan, isnan
 import pandas as pd
 import numpy as np
-from tqdm import tqdm
 
 
 @dataclass
@@ -116,9 +115,7 @@ class Strategy:
         cash: float = 1e9,
         commission: float = 0.001425,
         tax: float = 0.003,
-        T: float = 1.0,
         freq: str = "D",
-        normalize: bool = True,
         # start_date: Optional[datetime] = None,
         # end_date: Optional[datetime] = None,
     ):
@@ -133,10 +130,8 @@ class Strategy:
         self.cash = cash
         self.commission = commission
         self.tax = tax
-        self.normalize = normalize
 
         self.freq = freq  # "D" or "W"
-        self.T = T
         self.last_weekday = 100
 
         self.returns: List[float] = []
@@ -167,17 +162,7 @@ class Strategy:
             return
 
         row = self.buy_signal.iloc[i]
-        if self.normalize:
-            row = (row - row.mean(skipna=True)) / row.std(skipna=True)
-        row = np.exp(row / self.T)
-        row = row / row.sum()
-        row_cash = row.get("cash", 0.0)
-        row[row <= row_cash] = 0.0
-        row["cash"] = 1 - row.sum()
         row.sort_values(ascending=False, inplace=True)
-
-        # print(self.date)
-        # print(row)
 
         total_value = self.portfolio.total_market_value + self.portfolio.cash
 
@@ -303,7 +288,7 @@ class Strategy:
         """
         Abstract method to evaluate the strategy over the backtest period.
         """
-        for i, record in tqdm(enumerate(self.data.to_dict("records"))):
+        for i, record in enumerate(self.data.to_dict("records")):
             self.date = self.data.index[i]
             self.next(i, record)
 
@@ -340,17 +325,13 @@ class DailyBacktest:
         cash: float,
         commission: float = 0.001425,
         tax: float = 0.003,
-        T: float = 1.0,
         freq: str = "D",
-        normalize: bool = True,
     ):
         self.data = data
         self.cash = cash
         self.commission = commission
         self.tax = tax
-        self.T = T
         self.freq = freq
-        self.normalize = normalize
 
     def run(self, buy_signal: pd.DataFrame, sell_signal: pd.DataFrame = None) -> Result:
         """
@@ -363,9 +344,7 @@ class DailyBacktest:
             cash=self.cash,
             commission=self.commission,
             tax=self.tax,
-            T=self.T,
             freq=self.freq,
-            normalize=self.normalize,
         )
         result = strategy.eval()
         return result

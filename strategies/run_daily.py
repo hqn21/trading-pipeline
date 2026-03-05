@@ -7,25 +7,37 @@ from strategies.backtest.daily import *
 from strategies.utils.data_processor import filter_bad_targets, get_price_df
 from strategies.utils.analysis import get_equal_weight_baseline_result
 from evaluation.stats import sharpe, sharpe_0050
+import numpy as np
 
 finlab_token = os.getenv("FINLAB_API_KEY")
 finlab.login(finlab_token)
 
-def generate_daily_signal(cfg, pred_df: pd.DataFrame, val_df: pd.DataFrame):
+
+def get_daily_scores(cfg, pred_df: pd.DataFrame, val_df: pd.DataFrame):
     cash_pct = val_df.melt().value.quantile(cfg["cash_quantile"])
     pred_df["cash"] = cash_pct
-    signals = pd.DataFrame(index=pred_df.index, columns=pred_df.columns, data=0)
 
-    prev_row = None
-    for i, (date, row) in enumerate(pred_df.iterrows()):
-        row.fillna(0, inplace=True)
-        if i < cfg["k"]:
-            row = pred_df.iloc[0 : i + 1].mean(axis=0)
-        else:
-            alpha = 2 / (cfg["k"] + 1)
-            row = row * alpha + prev_row * (1 - alpha)
-        signals.loc[date] = row
-        prev_row = row
+    return pred_df
+
+
+def compute_daily_signals(cfg, scores: pd.DataFrame):
+    # Vectorized k-smoothed scores using EWM
+    scores = scores.fillna(0)
+    signals = scores.ewm(span=cfg["k"]).mean()
+
+    # Vectorized softmax portfolio computation
+    if cfg["normalize"]:
+        signals = signals.sub(signals.mean(axis=1), axis=0).div(
+            signals.std(axis=1), axis=0
+        )
+
+    signals = np.exp(signals / cfg["T"])
+    signals = signals.div(signals.sum(axis=1), axis=0)
+
+    # Vectorized cash thresholding
+    cash_col = signals["cash"]
+    signals = signals.where(signals.gt(cash_col, axis=0), 0.0)
+    signals["cash"] = 1.0 - signals.drop(columns=["cash"]).sum(axis=1)
 
     return signals
 
@@ -37,20 +49,20 @@ def get_daily_signals(
     start_date=None,
     end_date=None,
 ):
-    signals = pd.DataFrame()
+    scores = pd.DataFrame()
     for dir in os.listdir(f"{result_dir}"):
-        print(f"Processing {dir}...")
         pred_df = pd.read_csv(f"{result_dir}/{dir}/test/pred_pct.csv", index_col=0)
         val_df = pd.read_csv(f"{result_dir}/{dir}/train_val/pred_pct.csv", index_col=0)
-        _signals = generate_daily_signal(cfg, pred_df, val_df=val_df)
-        signals = (
-            pd.concat([signals, _signals], axis=0) if not signals.empty else _signals
-        )
+        _scores = get_daily_scores(cfg, pred_df, val_df)
+        scores = pd.concat([scores, _scores], axis=0) if not scores.empty else _scores
     if start_date is not None:
-        signals = signals[signals.index >= start_date.strftime("%Y-%m-%d")]
+        scores = scores[scores.index >= start_date.strftime("%Y-%m-%d")]
     if end_date is not None:
-        signals = signals[signals.index < end_date.strftime("%Y-%m-%d")]
-    signals = signals.sort_index()
+        scores = scores[scores.index < end_date.strftime("%Y-%m-%d")]
+    scores = scores.sort_index()
+    scores = scores.loc[~scores.index.duplicated(keep="last")]
+
+    signals = compute_daily_signals(cfg, scores)
 
     return signals
 
@@ -83,9 +95,7 @@ def get_daily_result(
         commission=cfg["commission"],
         tax=cfg["tax"],
         cash=1e9,
-        T=cfg["T"],
         freq="D",
-        normalize=cfg["normalize"],
     )
     result = backtest.run(buy_signal=buy_signals)
     benchmark_result = get_equal_weight_baseline_result(
