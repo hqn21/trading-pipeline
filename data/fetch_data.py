@@ -28,10 +28,11 @@ market_features = [
     "etl:adj_low",
     "price:成交筆數",
     "price:成交金額",
+    "price:成交股數",
     "foreign_investors_shareholding:全體外資及陸資持股比率",
     "institutional_investors_trading_summary:外陸資買賣超股數(不含外資自營商)",
     "institutional_investors_trading_summary:外資自營商買賣超股數",
-    # "institutional_investors_trading_summary:投信買賣超股數",
+    "institutional_investors_trading_summary:投信買賣超股數",
     "institutional_investors_trading_summary:自營商買賣超股數(自行買賣)",
     "institutional_investors_trading_summary:自營商買賣超股數(避險)",
     # "tw_news_cnyes"
