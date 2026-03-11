@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-from models.stock_attentioner import StockAttentioner
-
 class BaseModel(nn.Module):
     def __init__(self, model, preprocesser_model: nn.Module=None):
         super(BaseModel, self).__init__()

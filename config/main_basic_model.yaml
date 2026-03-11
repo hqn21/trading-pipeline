@@ -1,0 +1,64 @@
+split_dates: ["2018-01-01", "2020-01-01", "2021-01-01", "2022-01-01"]
+is_training: 1
+model: "iTransformer" # diff
+result_file_name: "Top50_iTransformer"
+notes: ""
+model_name: "BasicModel" # diff
+
+# data loader
+data: "Dataset_Abs"
+root_path: "./data/raw/market/"
+broker_path: "./data/raw/broker/"
+target: "etl:adj_close"
+goal: "max_price"
+task_type: "regression"
+
+loss: "ccc"
+general_data: 0
+general_data_path: "./data/raw/global/global_data.csv"
+data_info_path: "./data/info/data_info.json"
+broker_info_path: "./data/info/broker_info.json"
+
+# data info
+category: "Top50"
+pred_len: 30
+seq_len: 60
+market_features: ["etl:adj_close", "etl:adj_open", "etl:adj_high", "etl:adj_low", "price:成交股數", "price:成交筆數", "price:成交金額", "institutional_investors_trading_summary:外陸資買賣超股數(不含外資自營商)", "institutional_investors_trading_summary:外資自營商買賣超股數", "institutional_investors_trading_summary:投信買賣超股數", "institutional_investors_trading_summary:自營商買賣超股數(自行買賣)", "institutional_investors_trading_summary:自營商買賣超股數(避險)", "foreign_investors_shareholding:全體外資及陸資持股比率"]
+global_features: null
+broker_topK: 50
+
+concat_market_global: 0
+
+# basic model
+use_covariate: 0
+use_general_daily: 0
+output_attention: 0
+d_model: 128
+log: 0
+thresh: null
+decomp_method: 'moving_avg'
+decomp_kernel_size: 25
+embed: 'timeF'
+freq: 'd'
+dropout: 0.1
+e_layers: 2
+d_layers: 1
+factor: 3
+enc_in: 13
+dec_in: 7
+c_out: 13
+n_features: 13
+n_heads: 8
+d_ff: 2048
+activation: 'gelu'
+task_name: 'pct_to_prev'
+make_dependent: 0
+label_len: 15
+
+
+# optimization
+num_workers: 4
+train_epochs: 3
+batch_size: 32
+patience: 3
+learning_rate: 0.0001

@@ -1,9 +1,11 @@
 # models/factory.py
 from models.stock_attentioner import StockAttentioner
+from models.basic_model.BasicModel import BasicModel
 from models.base import BaseModel
 
 MODEL_REGISTRY = {
     "StockAttentioner": StockAttentioner,
+    "BasicModel": BasicModel,
 }
 
 def load_main_model(args, preprocessor_model=None):

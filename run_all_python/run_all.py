@@ -8,7 +8,7 @@ from time import sleep
 
 
 split_sets = [
-    ["2018-01-01", "2020-01-01","2021-01-01","2022-01-01"],
+    ["2018-01-01", "2020-01-01", "2021-01-01", "2022-01-01"],
     ["2019-01-01", "2021-01-01", "2022-01-01", "2023-01-01"],
     ["2020-01-01", "2022-01-01", "2023-01-01", "2024-01-01"],
     ["2021-01-01", "2023-01-01", "2024-01-01", "2025-01-01"],
@@ -21,7 +21,7 @@ categories = ['Top50', 'Top100', "Selected", "SelectedVer2"]
 # [ 'Top50', 'Top100', 'BioMedTSE', 'ChemicalTSE', 'ElectronicComponentTSE', 'FinanceTSE', 'OptoTSE', "SemiconductorTSE",
 #                   "Selected", "SelectedVer2", "BuildingTSE", "CarTSE", "ClothesTSE", "NetworkTSE", "MetalTSE", "EETSE", "ComputerTSE"]
 # 载入 base config
-with open("config/main_training.yaml") as f:
+with open("config/main_stock_attentioner.yaml") as f:
     base_cfg = yaml.safe_load(f)
 
 with open("config/preprocessor_training.yaml") as f:
